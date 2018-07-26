@@ -21,18 +21,21 @@ case class LegacyScheduler(
 
   override def getInstances(runSpecId: PathId)(implicit ec: ExecutionContext): Future[Seq[Instance]] = instanceTracker.specInstances(runSpecId)
 
+  @SuppressWarnings(Array("all")) // async/await
   override def run(instanceIds: Instance.Id*)(implicit ec: ExecutionContext): Future[Done] = async {
     val work = Future.sequence(instanceIds.map(instanceTracker.setGoal(_, Goal.Running)))
     await(work)
     Done
   }
 
+  @SuppressWarnings(Array("all")) // async/await
   override def decommission(instanceIds: Instance.Id*)(implicit ec: ExecutionContext): Future[Done] = async {
     val work = Future.sequence(instanceIds.map(instanceTracker.setGoal(_, Goal.Decommissioned)))
     await(work)
     Done
   }
 
+  @SuppressWarnings(Array("all")) // async/await
   override def stop(instanceIds: Instance.Id*)(implicit ec: ExecutionContext): Future[Done] = async {
     val work = Future.sequence(instanceIds.map(instanceTracker.setGoal(_, Goal.Stopped)))
     await(work)
