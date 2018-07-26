@@ -3,8 +3,8 @@ package core
 
 import java.time.Clock
 import java.util.concurrent.Executors
-import javax.inject.Named
 
+import javax.inject.Named
 import akka.actor.{ActorRef, ActorSystem}
 import akka.event.EventStream
 import com.google.inject.{Inject, Provider}
@@ -32,6 +32,7 @@ import mesosphere.marathon.core.task.jobs.TaskJobsModule
 import mesosphere.marathon.core.task.termination.TaskTerminationModule
 import mesosphere.marathon.core.task.tracker.InstanceTrackerModule
 import mesosphere.marathon.core.task.update.TaskStatusUpdateProcessor
+import mesosphere.marathon.scheduling.SchedulingModule
 import mesosphere.marathon.storage.{StorageConf, StorageModule}
 import mesosphere.util.NamedExecutionContext
 import mesosphere.util.state.MesosLeaderInfo
@@ -149,6 +150,12 @@ class CoreModuleImpl @Inject() (
     () => marathonScheduler.getLocalRegion
   )
 
+  lazy val schedulingModule = new SchedulingModule(
+    launcherModule.offerProcessor,
+    instanceTrackerModule.instanceTracker,
+    taskStatusUpdateProcessor
+  )
+
   // PLUGINS
   override lazy val pluginModule = new PluginModule(marathonConf, crashStrategy)
 
@@ -207,7 +214,7 @@ class CoreModuleImpl @Inject() (
   override lazy val deploymentModule: DeploymentModule = new DeploymentModule(
     marathonConf,
     leadershipModule,
-    instanceTrackerModule.instanceTracker,
+    schedulingModule,
     taskTerminationModule.taskKillService,
     appOfferMatcherModule.launchQueue,
     schedulerActions, // alternatively schedulerActionsProvider.get()
@@ -262,7 +269,7 @@ class CoreModuleImpl @Inject() (
     eventStream,
     taskTerminationModule.taskKillService)(schedulerActionsExecutionContext)
 
-  override lazy val marathonScheduler: MarathonScheduler = new MarathonScheduler(eventStream, launcherModule.offerProcessor, taskStatusUpdateProcessor, storageModule.frameworkIdRepository, mesosLeaderInfo, marathonConf)
+  override lazy val marathonScheduler: MarathonScheduler = new MarathonScheduler(eventStream, schedulingModule.scheduler, storageModule.frameworkIdRepository, mesosLeaderInfo, marathonConf)
 
   // MesosHeartbeatMonitor decorates MarathonScheduler
   override def mesosHeartbeatMonitor = new MesosHeartbeatMonitor(marathonScheduler, heartbeatActor)

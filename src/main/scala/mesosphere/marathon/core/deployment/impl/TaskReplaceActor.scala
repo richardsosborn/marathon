@@ -7,26 +7,26 @@ import akka.event.EventStream
 import akka.pattern._
 import com.typesafe.scalalogging.StrictLogging
 import mesosphere.marathon.core.event._
-import mesosphere.marathon.core.instance.Instance.Id
 import mesosphere.marathon.core.instance.{Goal, Instance}
+import mesosphere.marathon.core.instance.Instance.Id
 import mesosphere.marathon.core.launchqueue.LaunchQueue
 import mesosphere.marathon.core.readiness.ReadinessCheckExecutor
 import mesosphere.marathon.core.task.termination.InstanceChangedPredicates.considerTerminal
 import mesosphere.marathon.core.task.termination.{KillReason, KillService}
-import mesosphere.marathon.core.task.tracker.InstanceTracker
 import mesosphere.marathon.state.RunSpec
 
 import scala.async.Async.{async, await}
 import scala.collection.{SortedSet, mutable}
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{Await, Future, Promise}
+import scala.concurrent.duration._
 
 class TaskReplaceActor(
     val deploymentManagerActor: ActorRef,
     val status: DeploymentStatus,
     val killService: KillService,
     val launchQueue: LaunchQueue,
-    val instanceTracker: InstanceTracker,
+    val scheduler: scheduling.Scheduler,
     val eventBus: EventStream,
     val readinessCheckExecutor: ReadinessCheckExecutor,
     val runSpec: RunSpec,
@@ -40,7 +40,10 @@ class TaskReplaceActor(
   // Killed resident tasks are not expunged from the instances list. Ignore
   // them. LaunchQueue takes care of launching instances against reservations
   // first
-  val currentInstances = instanceTracker.specInstancesSync(runSpec.id).filter(_.state.goal == Goal.Running)
+  val currentInstances = {
+    // TODO(karsten): Use InstanceTrackerConfig.internalTaskTrackerRequestTimeout or rather be async.
+    Await.result(scheduler.getInstances(runSpec.id), 1000.millis).filter(_.state.goal == Goal.Running)
+  }
 
   // In case previous master was abdicated while the deployment was still running we might have
   // already started some new tasks.
@@ -188,11 +191,8 @@ class TaskReplaceActor(
       }
 
       async {
-        if (runSpec.isResident) {
-          await(instanceTracker.setGoal(nextOldInstance.instanceId, Goal.Stopped))
-        } else {
-          await(instanceTracker.setGoal(nextOldInstance.instanceId, Goal.Decommissioned))
-        }
+        if (runSpec.isResident) { await(scheduler.stop(nextOldInstance.instanceId)) }
+        else { await(scheduler.decommission(nextOldInstance.instanceId)) }
         await(killService.killInstance(nextOldInstance, KillReason.Upgrading))
       }
     }
@@ -219,12 +219,12 @@ object TaskReplaceActor extends StrictLogging {
     status: DeploymentStatus,
     killService: KillService,
     launchQueue: LaunchQueue,
-    instanceTracker: InstanceTracker,
+    scheduler: scheduling.Scheduler,
     eventBus: EventStream,
     readinessCheckExecutor: ReadinessCheckExecutor,
     app: RunSpec,
     promise: Promise[Unit]): Props = Props(
-    new TaskReplaceActor(deploymentManagerActor, status, killService, launchQueue, instanceTracker, eventBus,
+    new TaskReplaceActor(deploymentManagerActor, status, killService, launchQueue, scheduler, eventBus,
       readinessCheckExecutor, app, promise)
   )
 

@@ -13,7 +13,6 @@ import mesosphere.marathon.core.health.{MarathonHttpHealthCheck, PortReference}
 import mesosphere.marathon.core.instance.{Instance, TestInstanceBuilder}
 import mesosphere.marathon.core.launchqueue.LaunchQueue
 import mesosphere.marathon.core.readiness.{ReadinessCheck, ReadinessCheckExecutor, ReadinessCheckResult}
-import mesosphere.marathon.core.task.tracker.InstanceTracker
 import mesosphere.marathon.core.task.{KillServiceMock, Task}
 import mesosphere.marathon.state.PathId._
 import mesosphere.marathon.state._
@@ -35,7 +34,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
       val instanceA = f.runningInstance(app)
       val instanceB = f.runningInstance(app)
 
-      f.tracker.specInstancesSync(app.id) returns Seq(instanceA, instanceB)
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instanceA, instanceB))
 
       val promise = Promise[Unit]()
       val newApp = app.copy(versionInfo = VersionInfo.forNewConfig(Timestamp(1)))
@@ -72,7 +71,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
 
       val instanceC = f.runningInstance(newApp)
 
-      f.tracker.specInstancesSync(app.id) returns Seq(instanceA, instanceC)
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instanceA, instanceC))
 
       val ref = f.replaceActor(newApp, promise)
       watch(ref)
@@ -100,7 +99,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
       val instanceA = f.runningInstance(app)
       val instanceB = f.runningInstance(app)
 
-      when(f.tracker.specInstancesSync(app.id)).thenReturn(Seq(instanceA, instanceB))
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instanceA, instanceB))
 
       val promise = Promise[Unit]()
       val newApp = app.copy(versionInfo = VersionInfo.forNewConfig(Timestamp(1)))
@@ -133,7 +132,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
       val instanceB = f.runningInstance(app)
       val instanceC = f.runningInstance(app)
 
-      when(f.tracker.specInstancesSync(app.id)).thenReturn(Seq(instanceA, instanceB, instanceC))
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instanceA, instanceB, instanceC))
 
       val promise = Promise[Unit]()
       val newApp = app.copy(versionInfo = VersionInfo.forNewConfig(Timestamp(1)))
@@ -179,7 +178,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
       val instanceB = f.runningInstance(app)
       val instanceC = f.runningInstance(app)
 
-      f.tracker.specInstancesSync(app.id) returns Seq(instanceA, instanceB, instanceC)
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instanceA, instanceB, instanceC))
 
       val promise = Promise[Unit]()
       val newApp = app.copy(versionInfo = VersionInfo.forNewConfig(Timestamp(1)))
@@ -236,7 +235,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
       val instanceB = f.runningInstance(app)
       val instanceC = f.runningInstance(app)
 
-      f.tracker.specInstancesSync(app.id) returns Seq(instanceA, instanceB, instanceC)
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instanceA, instanceB, instanceC))
 
       val promise = Promise[Unit]()
       val newApp = app.copy(versionInfo = VersionInfo.forNewConfig(Timestamp(1)))
@@ -305,7 +304,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
       val instanceB = f.runningInstance(app)
       val instanceC = f.runningInstance(app)
 
-      f.tracker.specInstancesSync(app.id) returns Seq(instanceA, instanceB, instanceC)
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instanceA, instanceB, instanceC))
 
       val promise = Promise[Unit]()
       val newApp = app.copy(versionInfo = VersionInfo.forNewConfig(Timestamp(1)))
@@ -373,7 +372,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
       val instanceB = f.runningInstance(app)
       val instanceC = f.runningInstance(app)
 
-      f.tracker.specInstancesSync(app.id) returns Seq(instanceA, instanceB, instanceC)
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instanceA, instanceB, instanceC))
 
       val promise = Promise[Unit]()
       val newApp = app.copy(versionInfo = VersionInfo.forNewConfig(Timestamp(1)))
@@ -440,7 +439,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
       val promise = Promise[Unit]()
       val newApp = app.copy(versionInfo = VersionInfo.forNewConfig(Timestamp(1)))
 
-      f.tracker.specInstancesSync(app.id) returns Seq(instanceA, instanceB, instanceC, instanceD)
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instanceA, instanceB, instanceC, instanceD))
       f.queue.sync(newApp) returns Future.successful(Done)
       f.queue.add(newApp, 1) returns Future.successful(Done)
 
@@ -504,7 +503,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
       val app = AppDefinition(id = "/myApp".toPath, instances = 2)
       val instanceA = f.runningInstance(app)
       val instanceB = f.runningInstance(app)
-      f.tracker.specInstancesSync(app.id) returns Seq(instanceA, instanceB)
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instanceA, instanceB))
       f.queue.sync(app) returns Future.successful(Done)
       val promise = Promise[Unit]()
 
@@ -524,7 +523,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
       val port = PortDefinition(0, name = Some(check.portName))
       val app = AppDefinition(id = "/myApp".toPath, instances = 1, portDefinitions = Seq(port), readinessChecks = Seq(check))
       val instance = f.runningInstance(app)
-      f.tracker.specInstancesSync(app.id) returns Seq(instance)
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instance))
       f.queue.sync(app) returns Future.successful(Done)
       val readyCheck = Observable.from(instance.tasksMap.values.map(task => ReadinessCheckResult(check.name, task.taskId, ready = true, None)))
       f.readinessCheckExecutor.execute(any[ReadinessCheckExecutor.ReadinessCheckSpec]) returns readyCheck
@@ -551,7 +550,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
         healthChecks = Set(MarathonHttpHealthCheck())
       )
       val instance = f.runningInstance(app)
-      f.tracker.specInstancesSync(app.id) returns Seq(instance)
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instance))
       f.queue.sync(app) returns Future.successful(Done)
       val readyCheck = Observable.from(instance.tasksMap.values.map(task => ReadinessCheckResult(ready.name, task.taskId, ready = true, None)))
       f.readinessCheckExecutor.execute(any[ReadinessCheckExecutor.ReadinessCheckSpec]) returns readyCheck
@@ -577,7 +576,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
       val instanceA = f.runningInstance(app)
       val instanceB = f.runningInstance(app)
 
-      f.tracker.specInstancesSync(app.id) returns Seq(instanceA, instanceB)
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instanceA, instanceB))
 
       val promise = Promise[Unit]()
       val newApp = app.copy(versionInfo = VersionInfo.forNewConfig(Timestamp(1)))
@@ -610,7 +609,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
 
       val instance = f.runningInstance(app)
 
-      f.tracker.specInstancesSync(app.id) returns Seq(instance)
+      f.scheduler.getInstances(eq(app.id))(any) returns Future.successful(Seq(instance))
 
       val promise = Promise[Unit]()
       val newApp = app.copy(versionInfo = VersionInfo.forNewConfig(Timestamp(1)))
@@ -661,12 +660,13 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
     val deploymentStatus = DeploymentStatus(DeploymentPlan.empty, DeploymentStep(Seq.empty))
     val killService = new KillServiceMock(system)
     val queue: LaunchQueue = mock[LaunchQueue]
-    val tracker: InstanceTracker = mock[InstanceTracker]
+    val scheduler: scheduling.Scheduler = mock[scheduling.Scheduler]
     val readinessCheckExecutor: ReadinessCheckExecutor = mock[ReadinessCheckExecutor]
     val hostName = "host.some"
     val hostPorts = Seq(123)
 
-    tracker.setGoal(any, any) returns Future.successful(Done)
+    scheduler.stop(any)(any) returns Future.successful(Done)
+    scheduler.decommission(any)(any) returns Future.successful(Done)
 
     def runningInstance(app: AppDefinition): Instance = {
       TestInstanceBuilder.newBuilder(app.id, version = app.version)
@@ -686,7 +686,7 @@ class TaskReplaceActorTest extends AkkaUnitTest with Eventually {
     }
     def replaceActor(app: AppDefinition, promise: Promise[Unit]): ActorRef = system.actorOf(
       TaskReplaceActor.props(deploymentsManager, deploymentStatus, killService, queue,
-        tracker, system.eventStream, readinessCheckExecutor, app, promise)
+        scheduler, system.eventStream, readinessCheckExecutor, app, promise)
     )
   }
 }

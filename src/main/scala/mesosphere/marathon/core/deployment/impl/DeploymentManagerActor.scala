@@ -14,7 +14,6 @@ import mesosphere.marathon.core.health.HealthCheckManager
 import mesosphere.marathon.core.launchqueue.LaunchQueue
 import mesosphere.marathon.core.readiness.{ReadinessCheckExecutor, ReadinessCheckResult}
 import mesosphere.marathon.core.task.termination.KillService
-import mesosphere.marathon.core.task.tracker.InstanceTracker
 import mesosphere.marathon.metrics.{Metrics, ServiceMetric}
 import mesosphere.marathon.storage.repository.DeploymentRepository
 
@@ -124,15 +123,15 @@ import scala.util.control.NonFatal
   */
 // format: ON
 class DeploymentManagerActor(
-    taskTracker: InstanceTracker,
     killService: KillService,
     launchQueue: LaunchQueue,
-    scheduler: SchedulerActions,
+    schedulerActions: SchedulerActions,
+    scheduler: scheduling.Scheduler,
     healthCheckManager: HealthCheckManager,
     eventBus: EventStream,
     readinessCheckExecutor: ReadinessCheckExecutor,
     deploymentRepository: DeploymentRepository,
-    deploymentActorProps: (ActorRef, KillService, SchedulerActions, DeploymentPlan, InstanceTracker, LaunchQueue, HealthCheckManager, EventStream, ReadinessCheckExecutor) => Props = DeploymentActor.props)(implicit val mat: Materializer) extends Actor with StrictLogging {
+    deploymentActorProps: (ActorRef, KillService, SchedulerActions, scheduling.Scheduler, DeploymentPlan, LaunchQueue, HealthCheckManager, EventStream, ReadinessCheckExecutor) => Props = DeploymentActor.props)(implicit val mat: Materializer) extends Actor with StrictLogging {
   import context.dispatcher
 
   val runningDeployments: mutable.Map[String, DeploymentInfo] = mutable.Map.empty
@@ -333,9 +332,9 @@ class DeploymentManagerActor(
       deploymentActorProps(
         self,
         killService,
+        schedulerActions,
         scheduler,
         plan,
-        taskTracker,
         launchQueue,
         healthCheckManager,
         eventBus,
@@ -407,17 +406,17 @@ object DeploymentManagerActor {
 
   @SuppressWarnings(Array("MaxParameters"))
   def props(
-    taskTracker: InstanceTracker,
     killService: KillService,
-    launchQueue: LaunchQueue,
-    scheduler: SchedulerActions,
+    launchQueue: LaunchQueue, // TODO(karsten): Remove launch queue and go through scheduling.Scheduler.
+    schedulerActions: SchedulerActions,
+    scheduler: scheduling.Scheduler,
     healthCheckManager: HealthCheckManager,
     eventBus: EventStream,
     readinessCheckExecutor: ReadinessCheckExecutor,
     deploymentRepository: DeploymentRepository,
-    deploymentActorProps: (ActorRef, KillService, SchedulerActions, DeploymentPlan, InstanceTracker, LaunchQueue, HealthCheckManager, EventStream, ReadinessCheckExecutor) => Props = DeploymentActor.props)(implicit mat: Materializer): Props = {
-    Props(new DeploymentManagerActor(taskTracker, killService, launchQueue,
-      scheduler, healthCheckManager, eventBus, readinessCheckExecutor, deploymentRepository, deploymentActorProps))
+    deploymentActorProps: (ActorRef, KillService, SchedulerActions, scheduling.Scheduler, DeploymentPlan, LaunchQueue, HealthCheckManager, EventStream, ReadinessCheckExecutor) => Props = DeploymentActor.props)(implicit mat: Materializer): Props = {
+    Props(new DeploymentManagerActor(killService, launchQueue,
+      schedulerActions, scheduler, healthCheckManager, eventBus, readinessCheckExecutor, deploymentRepository, deploymentActorProps))
   }
 
 }

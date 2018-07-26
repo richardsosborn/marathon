@@ -10,7 +10,7 @@ import mesosphere.marathon.core.launchqueue.LaunchQueue
 import mesosphere.marathon.core.leadership.LeadershipModule
 import mesosphere.marathon.core.readiness.ReadinessCheckExecutor
 import mesosphere.marathon.core.task.termination.KillService
-import mesosphere.marathon.core.task.tracker.InstanceTracker
+import mesosphere.marathon.scheduling.SchedulingModule
 import mesosphere.marathon.storage.repository.DeploymentRepository
 
 /**
@@ -20,22 +20,22 @@ import mesosphere.marathon.storage.repository.DeploymentRepository
 class DeploymentModule(
     config: DeploymentConfig,
     leadershipModule: LeadershipModule,
-    taskTracker: InstanceTracker,
+    schedulingModule: SchedulingModule,
     killService: KillService,
     launchQueue: LaunchQueue,
-    scheduler: SchedulerActions,
+    schedulerActions: SchedulerActions,
     healthCheckManager: HealthCheckManager,
     eventBus: EventStream,
     readinessCheckExecutor: ReadinessCheckExecutor,
     deploymentRepository: DeploymentRepository,
-    deploymentActorProps: (ActorRef, KillService, SchedulerActions, DeploymentPlan, InstanceTracker, LaunchQueue, HealthCheckManager, EventStream, ReadinessCheckExecutor) => Props = DeploymentActor.props)(implicit val mat: Materializer) {
+    deploymentActorProps: (ActorRef, KillService, SchedulerActions, scheduling.Scheduler, DeploymentPlan, LaunchQueue, HealthCheckManager, EventStream, ReadinessCheckExecutor) => Props = DeploymentActor.props)(implicit val mat: Materializer) {
 
   private[this] val deploymentManagerActorRef: ActorRef = {
     val props = DeploymentManagerActor.props(
-      taskTracker: InstanceTracker,
       killService,
       launchQueue,
-      scheduler,
+      schedulerActions,
+      schedulingModule.scheduler,
       healthCheckManager,
       eventBus,
       readinessCheckExecutor,
