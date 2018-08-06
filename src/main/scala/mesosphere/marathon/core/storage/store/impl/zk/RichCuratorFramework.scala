@@ -147,12 +147,12 @@ class RichCuratorFramework(val client: CuratorFramework) {
     * @param lifecycleState reference to interface to query Marathon's lifecycle state
     */
   @SuppressWarnings(Array("CatchFatal"))
-  def blockUntilConnected(lifecycleState: LifecycleState): Unit = {
+  def blockUntilConnected(lifecycleState: LifecycleState, crashStrategy: CrashStrategy): Unit = {
     if (!lifecycleState.isRunning)
       throw new InterruptedException("Not waiting for connection to zookeeper; Marathon is shutting down")
 
-    if (!client.blockUntilConnected(client.getZookeeperClient.getConnectionTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS))
-      throw new InterruptedException("Timed out while waiting for zookeeper connection")
+    if (!client.blockUntilConnected(100, java.util.concurrent.TimeUnit.MILLISECONDS))
+      crashStrategy.crash()
   }
 }
 
@@ -173,12 +173,5 @@ object RichCuratorFramework {
   def apply(client: CuratorFramework): RichCuratorFramework = {
     client.getConnectionStateListenable().addListener(ConnectionLostListener)
     new RichCuratorFramework(client)
-  }
-  def apply(uri: String, retryPolicy: RetryPolicy): RichCuratorFramework = {
-    val c = CuratorFrameworkFactory.newClient(uri, retryPolicy)
-    c.getConnectionStateListenable().addListener(ConnectionLostListener)
-    c.start()
-
-    new RichCuratorFramework(c)
   }
 }

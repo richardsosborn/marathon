@@ -5,8 +5,8 @@ import akka.actor.Cancellable
 import akka.stream.scaladsl.Source
 import java.time.Clock
 import java.util.concurrent.Executors
-import javax.inject.Named
 
+import javax.inject.Named
 import akka.actor.{ActorRef, ActorSystem}
 import akka.event.EventStream
 import com.google.inject.{Inject, Provider}
@@ -40,7 +40,7 @@ import mesosphere.util.NamedExecutionContext
 import mesosphere.util.state.MesosLeaderInfo
 
 import scala.concurrent.ExecutionContext
-import scala.util.Random
+import scala.util.{Random, Try}
 
 /**
   * Provides the wiring for the core module.
@@ -88,13 +88,25 @@ class CoreModuleImpl @Inject() (
     new InstanceTrackerModule(clock, marathonConf, leadershipModule,
       storageModule.instanceRepository, instanceUpdateSteps)(actorsModule.materializer)
   override lazy val taskJobsModule = new TaskJobsModule(marathonConf, leadershipModule, clock)
-  override lazy val storageModule = StorageModule(
-    marathonConf,
-    lifecycleState)(
-    actorsModule.materializer,
-    storageExecutionContext,
-    actorSystem.scheduler,
-    actorSystem)
+  lazy val _storageModule = Try {
+    println(s"core module object id = ${this}")
+    StorageModule(
+      marathonConf,
+      lifecycleState,
+      crashStrategy)(
+      actorsModule.materializer,
+      storageExecutionContext,
+      actorSystem.scheduler,
+      actorSystem)
+  }
+
+  override def storageModule = _storageModule.get
+  //    try {
+  //    _storageModule.get
+  //  } catch {
+  //    case ex: Exception =>
+  //      crashStrategy.crash(); ???
+  //  }
 
   // READINESS CHECKS
   override lazy val readinessModule = new ReadinessModule(actorSystem, actorsModule.materializer)
